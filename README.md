@@ -26,12 +26,12 @@ bcftools/1.10.2
 gatk/4.0.2.1
 meme/5.1.0
 samtools/1.10
-tabix
-vcftools
+tabix/0.2.6
+vcftools/0.1.15
 vep/v88
-vt
+vt/2016.11.07
 zlib/1.2.5
-gcc
+gcc/6.3.0
 R/3.6.1
 ```
 ## R libraries:
