@@ -1,0 +1,25 @@
+#!/bin/bash
+
+
+
+if [ $# -eq 0 ]; then 
+	echo "Usage: $0 [FAMILY_DIR*]";
+	echo "";
+	echo "[FAMILY_DIR*] = Family directory structure that the wizard will loop through, submitting a job for each directory";
+	echo "";
+	exit 1;
+fi
+
+export SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )";
+
+for DIR in "$@"; do
+	    [ ! -d "$DIR" ] && ( echo "$DIR is not a readable directory. skipping"; continue; )
+
+		export FAM=${DIR%/}
+
+		bsub -P famvp -J "famvp_${FAM}" -oo "${FAM}_famvp.log" -q priority -n 1 -M 10GB -cwd $FAM "module load gcc; module load R/3.6.1; Rscript ${SCRIPT_DIR}/famvp_v2.R $FAM GM12878; Rscript ${SCRIPT_DIR}/kinship2_igv.R ${FAM}_priority_coding.txt coding ${SCRIPT_DIR}/HL_bamList.txt; Rscript ${SCRIPT_DIR}/kinship2_igv.R ${FAM}_priority_noncoding.txt noncoding ${SCRIPT_DIR}/HL_bamList.txt"
+	
+done
+
+exit 0
+

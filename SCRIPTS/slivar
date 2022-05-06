@@ -1,0 +1,28 @@
+#!/bin/bash
+
+
+
+if [ $# -eq 0 ]; then 
+	echo "Usage: $0 [JOINT_VCF] [FAMILY_DIR*]";
+	echo "";
+	echo "[JOINT_VCF] = A cohort level joint VCF for slivar to operate on";
+	echo "";
+	echo "[FAMILY_DIR*] = Family directory structure that the wizard will loop through, submitting a job for each directory";
+	echo "";
+	exit 1;
+fi
+
+export SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )";
+
+export JOINTVCF=$1; shift
+
+for DIR in "$@"; do
+	    [ ! -d "$DIR" ] && ( echo "$DIR is not a readable directory. skipping"; continue; )
+
+		export FAM=${DIR%/}
+
+		bsub -J slivar_${FAM} -o ${FAM}_slivar.log -cwd $FAM < ${SCRIPT_DIR}/slivar.bs
+	
+done
+
+exit 0

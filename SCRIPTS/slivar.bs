@@ -1,0 +1,86 @@
+#BSUB -P NCpriorProc
+#BSUB -J NCpriorProc
+#BSUB -q priority
+#BSUB -oo NCpriorProc.log
+#BSUB -n 1
+#BSUB -M 10GB
+#BSUB -W 24:00
+
+echo "Current Family: ${FAM}"
+
+######### SLIVAR ##########
+
+echo "SLIVAR STARTED AT: "
+echo `date`
+### Use alias files to identify variants that are shared by affected individuals 
+/research/rgs01/project_space/cab/Control/common/reference/slivar/mne/slivar expr \
+	--pass-only \
+	--vcf $JOINTVCF \
+	--out-vcf $FAM.slivar.vcf \
+	--js ${SCRIPT_DIR}/functions.js \
+	--alias $FAM.alias \
+	--group-expr "shared_affected:finder(affecteds, unaffecteds)"
+
+######### ANNOVAR ##########
+
+echo "ANNOVAR STARTED AT: "
+echo `date`
+
+module load annovar/20191024
+### Add all other annotations
+table_annovar.pl $FAM.slivar.vcf /research/rgs01/project_space/cab/Control/common/reference/annovar/humandb -buildver hg38 \
+-out $FAM.slivar -remove \
+-protocol exac03,exac03nontcga,1000g2015aug_all,esp6500siv2_all,dbnsfp35a,intervar_20180118,dbscsnv11,cosmic70,nci60,clinvar_20190305,regsnpintron,regBase,regBase_prediction,wgEncodeRegDnaseClustered,encRegTfbsClustered,wgEncodeBroadHmmGm12878HMM,wgEncodeBroadHmmH1hescHMM,wgEncodeBroadHmmHepg2HMM,wgEncodeBroadHmmHmecHMM,wgEncodeBroadHmmHsmmHMM,wgEncodeBroadHmmHuvecHMM,wgEncodeBroadHmmK562HMM,wgEncodeBroadHmmNhekHMM,wgEncodeBroadHmmNhlfHMM \
+-operation f,f,f,f,f,f,f,f,f,f,f,f,f,r,r,r,r,r,r,r,r,r,r,r \
+-nastring . -vcfinput >$FAM.annovar.log
+
+module purge
+
+######### COMPRESS and INDEX ##########
+
+module load tabix
+
+bgzip -f $FAM.slivar.hg38_multianno.vcf
+tabix -p vcf $FAM.slivar.hg38_multianno.vcf.gz
+ 
+module purge
+
+########## GATK VariantsToTable ##########
+
+echo "GATK VariantsToTable STARTED AT: "
+echo `date`
+
+module load gatk/4.0.2.1
+
+gatk VariantsToTable \
+	-R /research/rgs01/reference/public/genomes/Homo_sapiens/GRCh38/GRCh38_no_alt/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna \
+	-V $FAM.slivar.hg38_multianno.vcf.gz \
+	-O $FAM.slivar.hg38_multianno.tab.txt \
+	-F CHROM -F POS -F ID -F QUAL -F REF -F ALT \
+	-F AC -F AF -F AN -F BaseQRankSum -F ClippingRankSum -F DP -F FS -F InbreedingCoeff -F MLEAC -F MLEAF -F MQ -F MQRankSum -F QD -F ReadPosRankSum -F SOR -F OLD_MULTIALLELIC \
+	-F Func.refGene -F Gene.refGene -F GeneDetail.refGene -F ExonicFunc.refGene -F AAChange.refGene \
+	-F gnomad211_exome_AF -F gnomad211_exome_AF_afr -F gnomad211_exome_AF_sas -F gnomad211_exome_AF_amr -F gnomad211_exome_AF_eas -F gnomad211_exome_AF_nfe -F gnomad211_exome_AF_fin -F gnomad211_exome_AF_asj -F gnomad211_exome_AF_oth \
+	-F gnomad30_genome_AF -F gnomad30_genome_AF_afr -F gnomad30_genome_AF_ami -F gnomad30_genome_AF_amr -F gnomad30_genome_AF_asj -F gnomad30_genome_AF_eas -F gnomad30_genome_AF_fin -F gnomad30_genome_AF_nfe -F gnomad30_genome_AF_oth -F gnomad30_genome_AF_sas \
+	-F ExAC_ALL -F ExAC_AFR -F ExAC_AMR -F ExAC_EAS -F ExAC_FIN -F ExAC_NFE -F ExAC_OTH -F ExAC_SAS \
+	-F ExAC_nontcga_ALL -F ExAC_nontcga_AFR -F ExAC_nontcga_AMR -F ExAC_nontcga_EAS -F ExAC_nontcga_FIN -F ExAC_nontcga_NFE -F ExAC_nontcga_OTH -F ExAC_nontcga_SAS -F 1000g2015aug_all -F esp6500siv2_all \
+	-F SIFT_score -F SIFT_converted_rankscore -F SIFT_pred -F Polyphen2_HDIV_score -F Polyphen2_HDIV_rankscore -F Polyphen2_HDIV_pred -F Polyphen2_HVAR_score -F Polyphen2_HVAR_rankscore -F Polyphen2_HVAR_pred -F LRT_score \
+	-F LRT_converted_rankscore -F LRT_pred -F MutationTaster_score -F MutationTaster_converted_rankscore -F MutationTaster_pred -F MutationAssessor_score -F MutationAssessor_score_rankscore -F MutationAssessor_pred -F FATHMM_score \
+	-F FATHMM_converted_rankscore -F FATHMM_pred -F PROVEAN_score -F PROVEAN_converted_rankscore -F PROVEAN_pred -F VEST3_score -F VEST3_rankscore -F MetaSVM_score -F MetaSVM_rankscore -F MetaSVM_pred -F MetaLR_score -F MetaLR_rankscor \
+	-F MetaLR_pred -F M-CAP_score -F M-CAP_rankscore -F M-CAP_pred -F REVEL_score -F REVEL_rankscore -F MutPred_score -F MutPred_rankscore -F CADD_raw -F CADD_raw_rankscore -F CADD_phred -F DANN_score -F DANN_rankscore -F fathmm-MKL_coding_score \
+	-F fathmm-MKL_coding_rankscore -F fathmm-MKL_coding_pred -F Eigen_coding_or_noncoding -F Eigen-raw -F Eigen-PC-raw -F GenoCanyon_score -F GenoCanyon_score_rankscore -F integrated_fitCons_score -F integrated_fitCons_score_rankscore \
+	-F integrated_confidence_value -F GERP++_RS -F GERP++_RS_rankscore -F phyloP100way_vertebrate -F phyloP100way_vertebrate_rankscore -F phyloP20way_mammalian -F phyloP20way_mammalian_rankscore -F phastCons100way_vertebrate \
+	-F phastCons100way_vertebrate_rankscore -F phastCons20way_mammalian -F phastCons20way_mammalian_rankscore -F SiPhy_29way_logOdds -F SiPhy_29way_logOdds_rankscore -F Interpro_domain -F GTEx_V6p_gene -F GTEx_V6p_tissue \
+	-F dbscSNV_ADA_SCORE -F dbscSNV_RF_SCORE -F cosmic70 -F nci60 -F CLNALLELEID -F CLNDN -F CLNDISDB -F CLNREVSTAT -F CLNSIG \
+	-F InterVar_automated -F PVS1 -F PS1 -F PS2 -F PS3 -F PS4 -F PM1 -F PM2 -F PM3 -F PM4 -F PM5 -F PM6 -F PP1 -F PP2 -F PP3 -F PP4 -F PP5 -F BA1 -F BS1 -F BS2 -F BS3 -F BS4 -F BP1 -F BP2 -F BP3 -F BP4 -F BP5 -F BP6 -F BP7 \
+	-F regsnp_fpr -F regsnp_disease -F regsnp_splicing_site -F REG -F REG_PHRED -F CAN -F CAN_PHRED -F PAT -F PAT_PHRED \
+	-F wgEncodeRegDnaseClustered -F encRegTfbsClustered -F wgEncodeBroadHmmGm12878HMM -F wgEncodeBroadHmmH1hescHMM -F wgEncodeBroadHmmHepg2HMM \
+	-F wgEncodeBroadHmmHmecHMM -F wgEncodeBroadHmmHsmmHMM -F wgEncodeBroadHmmHuvecHMM -F wgEncodeBroadHmmK562HMM -F wgEncodeBroadHmmNhekHMM -F wgEncodeBroadHmmNhlfHMM  \
+	-F CADD -F CADD_PHRED -F DANN -F DANN_PHRED -F FATHMM-MKL -F FATHMM-MKL_PHRED -F FunSeq2 -F FunSeq2_PHRED -F Eigen -F Eigen_PHRED -F Eigen_PC -F Eigen_PC_PHRED -F GenoCanyon -F GenoCanyon_PHRED -F FIRE \
+	-F FIRE_PHRED -F ReMM -F ReMM_PHRED -F LINSIGHT -F LINSIGHT_PHRED -F fitCons -F fitCons_PHRED -F FATHMM-XF -F FATHMM-XF_PHRED -F CScape -F CScape_PHRED -F CDTS -F CDTS_PHRED \
+	-GF GT -GF AD -GF DP
+
+module unload gatk/4.0.2.1
+
+echo "PIPELINE COMPLETED AT:"
+echo `date`
+
